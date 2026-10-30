@@ -20,7 +20,26 @@ export default function Page() {
   const [busy, setBusy] = useState(false)
   const [fetching, setFetching] = useState(false)
 
-  const addManual = () => { if (!draft.text.trim()) return setError('Paste source text before adding a manual source.'); if (draft.text.trim().length < 40) return setError('Add at least 40 characters of source text.'); setSources((s) => [...s, { id: crypto.randomUUID(), title: draft.title.trim() || 'Untitled manual source', text: draft.text.trim(), url: draft.url.trim() || undefined, status: 'manual', domain: draft.url ? new URL(draft.url).hostname : undefined }]); setDraft({ url: '', title: '', text: '' }); setError('') }
+  const addManual = () => {
+    if (sources.length >= 12) return setError('You can add up to 12 sources per analysis.')
+    if (!draft.text.trim()) return setError('Paste source text before adding a manual source.')
+    if (draft.text.trim().length < 40) return setError('Add at least 40 characters of source text.')
+    let url: string | undefined
+    let domain: string | undefined
+    if (draft.url.trim()) {
+      try {
+        const parsed = new URL(draft.url.trim())
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only HTTP and HTTPS source URLs are supported.')
+        url = parsed.toString()
+        domain = parsed.hostname
+      } catch (e) {
+        return setError(e instanceof Error ? e.message : 'Enter a valid source URL or leave the URL blank.')
+      }
+    }
+    setSources((current) => [...current, { id: crypto.randomUUID(), title: draft.title.trim() || 'Untitled manual source', text: draft.text.trim(), url, status: 'manual', domain }])
+    setDraft({ url: '', title: '', text: '' })
+    setError('')
+  }
   const retrieve = async () => { if (!draft.url.trim()) return setError('Enter a public URL first.'); setFetching(true); setError(''); try { const res = await fetch('/api/source', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: draft.url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setSources((s) => [...s, { id: crypto.randomUUID(), title: draft.title.trim() || data.title || data.domain, text: data.text, url: data.url, domain: data.domain, status: 'retrieved', retrievedAt: new Date().toISOString(), publishedDate: data.publishedDate }]); setDraft({ url: '', title: '', text: '' }) } catch (e) { setError(e instanceof Error ? e.message : 'Could not retrieve source.') } finally { setFetching(false) } }
   const runAnalysis = async () => { if (!question.trim()) return setError('Enter a research question.'); if (!sources.length) return setError('Add at least one source.'); setBusy(true); setError(''); try { const res = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question, sources }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setAnalysis(data) } catch (e) { setError(e instanceof Error ? e.message : 'Analysis failed. Retry when ready.') } finally { setBusy(false) } }
   const reset = () => { setQuestion(''); setSources([]); setAnalysis(null); setError('') }

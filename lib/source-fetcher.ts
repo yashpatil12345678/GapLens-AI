@@ -28,23 +28,43 @@ function extract(html: string) {
   return { title, text, publishedDate: dates }
 }
 
+async function readLimited(response: Response) {
+  const length = Number(response.headers.get('content-length') || 0)
+  if (length > MAX_BYTES) throw new Error('Source is larger than the safety limit.')
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let total = 0
+  let body = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > MAX_BYTES) { await reader.cancel(); throw new Error('Source is larger than the safety limit.') }
+    body += decoder.decode(value, { stream: true })
+  }
+  return body + decoder.decode()
+}
+
 export async function fetchSource(rawUrl: string) {
-  const initial = new URL(rawUrl)
-  await assertSafe(initial)
+  let current = new URL(rawUrl)
+  await assertSafe(current)
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
-    const response = await fetch(initial, { signal: controller.signal, redirect: 'manual', headers: { 'User-Agent': 'GapLensAI/1.0 research fetcher', Accept: 'text/html,text/plain;q=0.8' } })
-    let finalUrl = initial
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location'); if (!location) throw new Error('Redirect destination was missing.')
-      finalUrl = new URL(location, initial); await assertSafe(finalUrl)
-      const redirected = await fetch(finalUrl, { signal: controller.signal, headers: { 'User-Agent': 'GapLensAI/1.0 research fetcher', Accept: 'text/html,text/plain;q=0.8' } })
-      if (!redirected.ok) throw new Error(`The source returned ${redirected.status}.`)
-      const length = Number(redirected.headers.get('content-length') || 0); if (length > MAX_BYTES) throw new Error('Source is larger than the safety limit.')
-      const body = (await redirected.text()).slice(0, MAX_BYTES); return { ...extract(body), url: finalUrl.toString(), domain: finalUrl.hostname }
+    for (let redirect = 0; redirect <= 3; redirect++) {
+      const response = await fetch(current, { signal: controller.signal, redirect: 'manual', headers: { 'User-Agent': 'GapLensAI/1.0 research fetcher', Accept: 'text/html,text/plain;q=0.8' } })
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        if (redirect === 3) throw new Error('The source redirected too many times.')
+        const location = response.headers.get('location'); if (!location) throw new Error('Redirect destination was missing.')
+        current = new URL(location, current); await assertSafe(current)
+        continue
+      }
+      if (!response.ok) throw new Error(`The source returned ${response.status}.`)
+      const contentType = response.headers.get('content-type') || ''
+      if (!/text\/html|text\/plain|application\/xhtml\+xml/i.test(contentType)) throw new Error('The source is not a readable HTML or text document.')
+      const body = await readLimited(response)
+      return { ...extract(body), url: current.toString(), domain: current.hostname }
     }
-    if (!response.ok) throw new Error(`The source returned ${response.status}.`)
-    const length = Number(response.headers.get('content-length') || 0); if (length > MAX_BYTES) throw new Error('Source is larger than the safety limit.')
-    const body = (await response.text()).slice(0, MAX_BYTES); return { ...extract(body), url: initial.toString(), domain: initial.hostname }
+    throw new Error('The source could not be retrieved.')
   } finally { clearTimeout(timer) }
 }
