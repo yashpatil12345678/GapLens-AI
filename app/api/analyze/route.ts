@@ -11,12 +11,17 @@ const modelSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  let providerName = 'unknown'
   try {
     const body = await request.json() as { question?: string; sources?: { id: string; title: string; text: string; url?: string; publishedDate?: string }[] }
     if (!body.question?.trim() || !Array.isArray(body.sources) || body.sources.length === 0) return Response.json({ error: 'Add a research question and at least one source.' }, { status: 400 })
     if (body.question.length > 600 || body.sources.length > 12) return Response.json({ error: 'Question or source limit exceeded.' }, { status: 400 })
-    const geminiKey = process.env.GEMINI_API_KEY
-    if (!process.env.AI_GATEWAY_API_KEY && !geminiKey) return Response.json({ error: 'AI analysis is not configured. Add GEMINI_API_KEY for the no-card Gemini free tier, or configure AI_GATEWAY_API_KEY, then retry.' }, { status: 503 })
+    const geminiKey = process.env.GEMINI_API_KEY?.trim()
+    const gatewayKey = process.env.AI_GATEWAY_API_KEY?.trim()
+    const requestedProvider = process.env.AI_PROVIDER?.trim().toLowerCase()
+    providerName = geminiKey ? 'google-gemini' : 'vercel-ai-gateway'
+    if (requestedProvider === 'gemini' && !geminiKey) return Response.json({ error: 'Google Gemini is selected, but GEMINI_API_KEY is not available in this deployment environment.' }, { status: 503 })
+    if (!gatewayKey && !geminiKey) return Response.json({ error: 'AI analysis is not configured. Configure GEMINI_API_KEY for direct Google Gemini access or AI_GATEWAY_API_KEY for Vercel AI Gateway.' }, { status: 503 })
     const maxContextChars = Number(process.env.AI_MAX_CONTEXT_CHARS || 120000)
   const perSourceChars = Number(process.env.AI_MAX_SOURCE_CHARS || 24000)
   let remaining = maxContextChars
@@ -37,5 +42,20 @@ export async function POST(request: Request) {
     if (invalidReference) return Response.json({ error: 'The model returned an invalid evidence reference. Retry the analysis.' }, { status: 502 })
     const processed = body.sources.length
     return Response.json({ ...result.object, overview: { sourcesSubmitted: processed, sourcesProcessed: processed, keyFindings: result.object.keyFindings.length, gaps: result.object.gaps.length, contradictions: result.object.contradictions.length, outdated: result.object.outdated.length, tasks: result.object.checklist.length } })
-  } catch (error) { console.error('[GapLens] analysis failed', error); const message = error instanceof Error ? error.message : ''; const billing = message.includes('credit card') || message.includes('customer_verification_required'); return Response.json({ error: billing ? 'Vercel AI Gateway is connected, but the team needs a valid billing method to unlock model credits. Add one in the Vercel AI Gateway settings, then retry.' : 'Analysis could not be completed. Check the AI Gateway connection and retry.' }, { status: 502 }) }
+  } catch (error) {
+    const candidate = error as { message?: unknown; statusCode?: unknown; status?: unknown }
+    const message = typeof candidate.message === 'string' ? candidate.message : 'Unknown provider error'
+    const status = Number(candidate.statusCode || candidate.status || 502)
+    const safeMessage = message.replace(/https?:\/\/\S+/g, '[provider link omitted]').replace(/(key|token|authorization)\s*[:=]\s*\S+/gi, '$1=[redacted]').slice(0, 240)
+    console.error('[GapLens] analysis provider failure', { provider: providerName, status, message: safeMessage })
+    const lower = message.toLowerCase()
+    let detail = `Google Gemini analysis failed (${status}). Verify GEMINI_API_KEY and retry.`
+    if (providerName === 'vercel-ai-gateway') detail = lower.includes('credit card') || lower.includes('customer_verification_required')
+      ? 'Vercel AI Gateway requires a valid billing method for this team. Configure GEMINI_API_KEY for direct Google Gemini access instead, or update Gateway billing.'
+      : `Vercel AI Gateway analysis failed (${status}). Check the Gateway configuration and retry.`
+    else if (status === 401 || status === 403) detail = 'Google Gemini rejected the request. Check that GEMINI_API_KEY is valid and enabled for the Generative Language API.'
+    else if (status === 429 || lower.includes('quota')) detail = 'Google Gemini rate limit or quota reached. Wait and retry, or use another configured provider.'
+    else if (lower.includes('model') && (lower.includes('not found') || lower.includes('unsupported'))) detail = 'The configured Gemini model is unavailable for this API key. Update the server model configuration.'
+    return Response.json({ error: detail }, { status: 502 })
+  }
 }
