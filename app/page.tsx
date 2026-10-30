@@ -10,6 +10,22 @@ const demoSources: Source[] = [
   { id: 'demo-2', title: 'Synthetic program requirements memo', url: 'https://demo.gaplens.local/requirements', domain: 'demo.gaplens.local', text: 'DEMONSTRATION DATA — Applicants may be enrolled part-time. Two recommendation letters are required. This memo refers to the 2023–24 cycle.', status: 'manual', publishedDate: '2023-09-01' },
   { id: 'demo-3', title: 'Synthetic renewal FAQ', url: 'https://demo.gaplens.local/renewal', domain: 'demo.gaplens.local', text: 'DEMONSTRATION DATA — Awards can be renewed, subject to continued eligibility. The FAQ does not state the minimum GPA or renewal deadline.', status: 'manual', publishedDate: '2024-02-12' },
 ]
+const demoAnalysis: Analysis = {
+  overview: { sourcesSubmitted: 3, sourcesProcessed: 3, keyFindings: 2, gaps: 1, contradictions: 1, outdated: 2, tasks: 4 },
+  keyFindings: [
+    { title: 'Eligibility requirements differ', summary: 'The synthetic documents describe both full-time and part-time enrollment as eligible. This is demonstration data, not a real scholarship rule.', sourceIds: ['demo-1', 'demo-2'], evidence: ['Applicants must be enrolled full-time.', 'Applicants may be enrolled part-time.'], confidence: 'High within demo sources' },
+    { title: 'Renewal is mentioned but underspecified', summary: 'The synthetic FAQ says awards can be renewed subject to continued eligibility, but does not define the renewal metrics.', sourceIds: ['demo-3'], evidence: ['The FAQ does not state the minimum GPA or renewal deadline.'], confidence: 'High within demo source' },
+  ],
+  gaps: [{ title: 'Renewal threshold and deadline', explanation: 'Potential gap: the minimum GPA and renewal deadline were not found in the sources reviewed.', whyItMatters: 'Applicants need these details to plan continued eligibility.', sourceIds: ['demo-3'], evidence: 'The synthetic FAQ explicitly leaves both details unstated.', action: 'Verify against the current official renewal policy.', priority: 'High', confidence: 'High within demo sources' }],
+  contradictions: [{ topic: 'Enrollment status', claims: [{ sourceId: 'demo-1', claim: 'Full-time enrollment is required.', passage: 'Applicants must be enrolled full-time.' }, { sourceId: 'demo-2', claim: 'Part-time enrollment is allowed.', passage: 'Applicants may be enrolled part-time.' }], explanation: 'The claims appear inconsistent, but the documents refer to different synthetic program memos and cycles.', action: 'Confirm the current cycle requirement with the official program owner.', priority: 'High' }],
+  outdated: [{ sourceId: 'demo-1', observedDate: '2024–25 cycle; published 2025-01-10', reason: 'This is an earlier application cycle.', action: 'Locate the current cycle notice.', priority: 'High' }, { sourceId: 'demo-2', observedDate: '2023–24 cycle; published 2023-09-01', reason: 'The referenced cycle is older than the eligibility brief.', action: 'Do not use it as current policy without confirmation.', priority: 'Medium' }],
+  checklist: [
+    { task: 'Confirm current enrollment status requirement', reason: 'The two synthetic documents conflict.', priority: 'High', sourceIds: ['demo-1', 'demo-2'], completed: false },
+    { task: 'Find the current application-cycle notice', reason: 'The supplied documents reference earlier cycles.', priority: 'High', sourceIds: ['demo-1', 'demo-2'], completed: false },
+    { task: 'Verify minimum GPA for renewal', reason: 'Not found in the sources reviewed.', priority: 'High', sourceIds: ['demo-3'], completed: false },
+    { task: 'Verify renewal deadline', reason: 'Not found in the sources reviewed.', priority: 'Medium', sourceIds: ['demo-3'], completed: false },
+  ],
+}
 
 export default function Page() {
   const [question, setQuestion] = useState('What are the current eligibility and renewal requirements for this scholarship?')
@@ -43,7 +59,7 @@ export default function Page() {
   const retrieve = async () => { if (!draft.url.trim()) return setError('Enter a public URL first.'); setFetching(true); setError(''); try { const res = await fetch('/api/source', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: draft.url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setSources((s) => [...s, { id: crypto.randomUUID(), title: draft.title.trim() || data.title || data.domain, text: data.text, url: data.url, domain: data.domain, status: 'retrieved', retrievedAt: new Date().toISOString(), publishedDate: data.publishedDate }]); setDraft({ url: '', title: '', text: '' }) } catch (e) { setError(e instanceof Error ? e.message : 'Could not retrieve source.') } finally { setFetching(false) } }
   const runAnalysis = async () => { if (!question.trim()) return setError('Enter a research question.'); if (!sources.length) return setError('Add at least one source.'); setBusy(true); setError(''); try { const res = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question, sources }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setAnalysis(data) } catch (e) { setError(e instanceof Error ? e.message : 'Analysis failed. Retry when ready.') } finally { setBusy(false) } }
   const reset = () => { setQuestion(''); setSources([]); setAnalysis(null); setError('') }
-  const loadDemo = () => { setQuestion('What are the current eligibility and renewal requirements for this scholarship?'); setSources(demoSources); setAnalysis(null); setError('') }
+  const loadDemo = () => { setQuestion('What are the current eligibility and renewal requirements for this scholarship?'); setSources(demoSources); setAnalysis(demoAnalysis); setError('') }
   const toggleTask = (i: number) => { if (!analysis) return; const checklist = analysis.checklist.map((item, index) => index === i ? { ...item, completed: !item.completed } : item); setAnalysis({ ...analysis, checklist }) }
   const sourceName = useMemo(() => new Map(sources.map((s) => [s.id, s.title])), [sources])
 
