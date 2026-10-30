@@ -1,4 +1,4 @@
-export type Source = { id: string; url?: string; title: string; text: string; domain?: string; status: 'manual' | 'retrieved' | 'failed'; retrievedAt?: string; publishedDate?: string; error?: string }
+export type Source = { id: string; url?: string; title: string; text: string; domain?: string; status: 'manual' | 'retrieved' | 'failed'; retrievedAt?: string; publishedDate?: string; error?: string; truncated?: boolean }
 
 export type Analysis = {
   overview: { sourcesSubmitted: number; sourcesProcessed: number; keyFindings: number; gaps: number; contradictions: number; outdated: number; tasks: number }
