@@ -8,7 +8,7 @@ GapLens AI is a full-stack research verification workspace for the Shinchan Onli
 
 1. Import or publish this project to Vercel.
 2. In the project dashboard, open **Settings → Integrations** and connect **Vercel AI Gateway**.
-3. Redeploy or refresh the preview. The app reads `AI_GATEWAY_API_KEY` only on the server.
+3. Redeploy or refresh the preview. The AI SDK uses the server-side Gateway connection; no API key is exposed to the browser. If the model request reports billing or configuration is unavailable, finish the Gateway setup in the Vercel dashboard and retry.
 
 No database is required: a research session lives in the browser until the user starts a new session. Source fetching and AI analysis run in Next.js server routes.
 
