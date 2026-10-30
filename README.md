@@ -7,7 +7,8 @@ GapLens AI is a full-stack research verification workspace for the Shinchan Onli
 ## Setup in Vercel
 
 1. Import or publish this project to Vercel.
-2. In the Vercel dashboard, open **AI Gateway**, create an API key, then add it under **Project Settings → Environment Variables** as `AI_GATEWAY_API_KEY` for Preview and Production.
+2. Recommended no-card option: create a Google AI Studio API key on the free Gemini tier, then add it under **Project Settings → Environment Variables** as `GEMINI_API_KEY` for Preview and Production. The app uses Gemini directly when this variable is present.
+3. Alternative: add `AI_GATEWAY_API_KEY` for Vercel AI Gateway. Gateway model access may require billing or credits; the app reports that provider error and does not fabricate results.
 3. Redeploy or refresh the preview. The key is server-only and never appears in browser code. A valid card/credits-enabled Gateway account is required; the currently available `API_KEY` variable is not a valid AI Gateway credential and is intentionally not used.
 
 No database is required: a research session lives in the browser until the user starts a new session. Source fetching and AI analysis run in Next.js server routes.
