@@ -1,6 +1,8 @@
 export type Source = { id: string; url?: string; title: string; text: string; domain?: string; status: 'manual' | 'retrieved' | 'failed'; retrievedAt?: string; publishedDate?: string; error?: string; truncated?: boolean }
 
 export type Analysis = {
+  mode?: 'offline-rule-based' | 'demo'
+  notice?: string
   overview: { sourcesSubmitted: number; sourcesProcessed: number; keyFindings: number; gaps: number; contradictions: number; outdated: number; tasks: number }
   keyFindings: { title: string; summary: string; sourceIds: string[]; evidence: string[]; confidence: string }[]
   gaps: { title: string; explanation: string; whyItMatters: string; sourceIds: string[]; evidence: string; action: string; priority: 'High' | 'Medium' | 'Low'; confidence: string }[]

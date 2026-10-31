@@ -2,31 +2,39 @@
 
 > Don’t just find information. Find what’s missing.
 
-GapLens AI is a full-stack research verification workspace for the Shinchan Online Hackathon 2026 problem statement, **Digital Dark Spot — AI-Assisted Information Gap Detection Platform**. It compares user-provided source text, flags potential gaps, conflicting claims, date signals, and creates a verification checklist.
+GapLens AI is a full-stack research verification workspace for the Shinchan Online Hackathon 2026 problem statement, **Digital Dark Spot — AI-Assisted Information Gap Detection Platform**.
 
-## Setup in Vercel
+## Architecture
 
-1. Import or publish this project to Vercel.
-2. Recommended no-card option: create a Google AI Studio API key on the free Gemini tier, then add it under **Project Settings → Environment Variables** as `GEMINI_API_KEY` for Preview and Production. The app uses Gemini directly when this variable is present.
-3. Alternative: add `AI_GATEWAY_API_KEY` for Vercel AI Gateway. Gateway model access may require billing or credits; the app reports that provider error and does not fabricate results.
-3. Redeploy or refresh the preview. The key is server-only and never appears in browser code. A valid card/credits-enabled Gateway account is required; the currently available `API_KEY` variable is not a valid AI Gateway credential and is intentionally not used.
+- Next.js App Router with responsive research workspace.
+- `POST /api/source` performs server-side public-page retrieval with URL validation, DNS/private-network blocking, redirect revalidation, timeout, content-type, download-size, readable-text, and truncation safeguards.
+- `POST /api/analyze` runs a deterministic, no-key rule-based analyzer. It normalizes text, extracts sentences, matches question topics, preserves exact evidence passages, detects potential conflicts in values/requirements, flags explicit older years, identifies missing question topics, and creates a prioritized verification checklist.
+- No external AI provider, API key, database, or paid service is required for the core workflow.
 
-No database is required: a research session lives in the browser until the user starts a new session. Source fetching and AI analysis run in Next.js server routes.
+The analyzer is intentionally not generative AI. It cannot establish truth, understand unstated context, or replace human verification. Every signal is labelled as heuristic and points back to supplied source text.
 
-## Routes
+## Setup and deployment
 
-- `POST /api/source` — validates and safely retrieves a public HTTP(S) page with redirect, DNS, timeout, and size protections.
-- `POST /api/analyze` — calls a structured AI response through Vercel AI Gateway and validates it with Zod.
+1. Import or publish the project to Vercel.
+2. Deploy normally. `GEMINI_API_KEY`, `AI_GATEWAY_API_KEY`, and `API_KEY` are not required and may be removed from the project environment after confirming no other project uses them.
+3. The app will work in Preview and Production without provider configuration.
+
+## Demo
+
+Click **Load demo** in the research workspace. The demo loads three clearly labelled synthetic scholarship documents and precomputed demonstration findings. Demo results are explicitly marked `DEMO DATA` and are never presented as live analysis.
+
+For a live no-key demonstration, paste two or more source passages, ask a focused question, and click **Analyze research gaps**. The result banner identifies the mode as offline rule-based analysis.
 
 ## Testing guide
 
-- Load the clearly labelled synthetic scholarship demonstration and run analysis after connecting AI Gateway.
-- Add a public URL, verify its retrieved status, then add pasted text as a fallback.
-- Try `localhost`, a private IP, credentials in a URL, and non-HTTP schemes; each should be rejected.
-- Remove a source before analysis and mark checklist items complete after results appear.
-- Disconnect or omit AI Gateway and confirm the UI shows setup guidance rather than fabricated results.
-- Test at a narrow mobile viewport; controls stack and evidence remains readable.
+- Paste multiple passages with different numerical requirements or dates; the analyzer should show potential contradiction and outdated-date signals with both passages.
+- Leave the question or sources empty to verify validation.
+- Try `localhost`, a private IP, credentials in a URL, non-HTTP schemes, a PDF, and oversized pages; the source endpoint rejects or explains each safely.
+- Load the demo and mark checklist items complete.
+- Test on a narrow mobile viewport; controls stack and evidence remains readable.
 
-## Limitations
+## Limitations and responsible use
 
-Extraction is intentionally lightweight and best suited to public HTML/text pages. JavaScript-rendered pages, paywalls, PDFs, robots restrictions, and complex layouts may require pasted text. AI findings are evidence triage, not proof of truth; always verify high-priority items against primary sources. The app does not persist sessions or provide web-wide search.
+The rule-based engine uses transparent lexical heuristics. It may miss paraphrases, semantic contradictions, implied dates, dynamically rendered page content, paywalls, PDFs, or context-dependent meanings. A potential gap means only that the information was not found in submitted sources; it does not mean the information does not exist. A potential contradiction may be explained by dates, definitions, units, or scope. Verify important claims with authoritative sources.
+
+Sessions are browser-held and not persisted. Source pages are treated as untrusted evidence and their instructions are never executed.
